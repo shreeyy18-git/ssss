@@ -18,9 +18,9 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
 # MongoDB connection
-mongo_url = os.environ['MONGO_URL']
+mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
 client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+db = client[os.environ.get('DB_NAME', 'disaster_preparedness')]
 
 # Security
 SECRET_KEY = "disaster_preparedness_secret_key_2024"
@@ -67,9 +67,26 @@ class Token(BaseModel):
     token_type: str
     user: User
 
+class Module(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    title: str
+    description: str
+    video_url: str
+    video_duration: int  # duration in minutes
+    order: int  # display order
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class VideoCompletion(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    module_id: str
+    completed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    watch_percentage: float = 100.0  # percentage of video watched
+
 class Quiz(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     title: str
+    module_id: str  # Associated module
     questions: List[dict]
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -77,6 +94,7 @@ class QuizAttempt(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: Optional[str] = None
     quiz_id: str
+    module_id: str  # Associated module
     score: int
     total_questions: int
     answers: List[dict]
@@ -198,29 +216,176 @@ async def initialize_default_data():
         for contact_data in contacts:
             contact = EmergencyContact(**contact_data)
             await db.emergency_contacts.insert_one(contact.dict())
-            
-        # Create sample quiz
-        sample_quiz = Quiz(
-            title="Basic Disaster Preparedness",
-            questions=[
-                {
-                    "question": "What should you do first during an earthquake?",
-                    "options": ["Run outside", "Drop, Cover, and Hold On", "Stand in doorway", "Call 911"],
-                    "correct": 1
-                },
-                {
-                    "question": "How many days of emergency supplies should you have?",
-                    "options": ["1 day", "3 days", "7 days", "14 days"],
-                    "correct": 1
-                },
-                {
-                    "question": "What is the safest place during a tornado?",
-                    "options": ["Under a bridge", "In a car", "Basement or interior room", "Outside"],
-                    "correct": 2
-                }
-            ]
-        )
-        await db.quizzes.insert_one(sample_quiz.dict())
+        
+        # Create modules with YouTube videos
+        modules_data = [
+            {
+                "title": "Fire Safety",
+                "description": "Learn essential fire safety procedures, evacuation techniques, and prevention methods to protect yourself and others during fire emergencies.",
+                "video_url": "https://youtu.be/ReL-DM9xhpI?si=tDeWcsHd4mK1yEAv",
+                "video_duration": 8,
+                "order": 1
+            },
+            {
+                "title": "Earthquake Response", 
+                "description": "Master the Drop, Cover, and Hold On technique and learn essential earthquake safety measures and post-earthquake procedures.",
+                "video_url": "https://youtu.be/BLEPakj1YTY?si=h61YmR5yZQfYxapW",
+                "video_duration": 7,
+                "order": 2
+            },
+            {
+                "title": "Flood Preparedness",
+                "description": "Understand flood risks, evacuation procedures, water safety protocols, and how to prepare for flood emergencies.",
+                "video_url": "https://youtu.be/43M5mZuzHF8?si=t7_jYxbItFkDFfnT",
+                "video_duration": 6,
+                "order": 3
+            },
+            {
+                "title": "Emergency Kits",
+                "description": "Learn what essential supplies to include in emergency kits for your home, school, and workplace to be prepared for any disaster.",
+                "video_url": "https://youtu.be/UmiGvOha7As?si=fX8Ns_F_Nya2gseu",
+                "video_duration": 9,
+                "order": 4
+            }
+        ]
+        
+        created_modules = []
+        for module_data in modules_data:
+            module = Module(**module_data)
+            await db.modules.insert_one(module.dict())
+            created_modules.append(module)
+        
+        # Create module-specific quizzes
+        quiz_data = [
+            {
+                "title": "Fire Safety Quiz",
+                "module_id": created_modules[0].id,
+                "questions": [
+                    {
+                        "question": "What should you do first when you discover a fire?",
+                        "options": ["Try to put it out yourself", "Alert others and activate fire alarm", "Gather your belongings", "Take photos for insurance"],
+                        "correct": 1
+                    },
+                    {
+                        "question": "When escaping from a fire, you should:",
+                        "options": ["Stand upright and run quickly", "Stay low and crawl below smoke", "Use the elevator for quick escape", "Stop to help others first"],
+                        "correct": 1
+                    },
+                    {
+                        "question": "Before opening a door during a fire emergency, you should:",
+                        "options": ["Open it quickly to escape fast", "Feel the door handle and door for heat", "Knock to see if anyone is behind it", "Break it down if it's locked"],
+                        "correct": 1
+                    },
+                    {
+                        "question": "If your clothes catch fire, you should:",
+                        "options": ["Run to get help", "Stop, Drop, and Roll", "Jump into water immediately", "Use your hands to pat out flames"],
+                        "correct": 1
+                    },
+                    {
+                        "question": "How often should smoke detector batteries be checked?",
+                        "options": ["Once a year", "Every 6 months", "Once a month", "Only when they beep"],
+                        "correct": 2
+                    }
+                ]
+            },
+            {
+                "title": "Earthquake Response Quiz",
+                "module_id": created_modules[1].id,
+                "questions": [
+                    {
+                        "question": "What is the correct response when you feel earthquake shaking?",
+                        "options": ["Run outside immediately", "Stand in a doorway", "Drop, Cover, and Hold On", "Get under a bed"],
+                        "correct": 2
+                    },
+                    {
+                        "question": "During an earthquake, the safest place to take cover is:",
+                        "options": ["Under a sturdy desk or table", "In a doorway", "Near a window", "Under stairs"],
+                        "correct": 0
+                    },
+                    {
+                        "question": "How long should you hold your protective position during earthquake shaking?",
+                        "options": ["Until counting to 10", "Until the shaking stops completely", "For exactly 30 seconds", "Until you hear the all-clear signal"],
+                        "correct": 1
+                    },
+                    {
+                        "question": "After an earthquake stops, you should:",
+                        "options": ["Immediately run outside", "Check for injuries and hazards first", "Turn on all lights", "Use the phone to call everyone"],
+                        "correct": 1
+                    },
+                    {
+                        "question": "If you're driving during an earthquake, you should:",
+                        "options": ["Speed up to get home quickly", "Stop immediately wherever you are", "Pull over safely and stay in the car", "Get out and lie on the ground"],
+                        "correct": 2
+                    }
+                ]
+            },
+            {
+                "title": "Flood Preparedness Quiz", 
+                "module_id": created_modules[2].id,
+                "questions": [
+                    {
+                        "question": "What is the most important rule about walking in flood water?",
+                        "options": ["Only walk if water is clear", "Never walk in moving water", "Walk quickly to minimize exposure", "Always walk with a group"],
+                        "correct": 1
+                    },
+                    {
+                        "question": "How much moving water can knock down an adult?",
+                        "options": ["12 inches", "6 inches", "18 inches", "24 inches"],
+                        "correct": 1
+                    },
+                    {
+                        "question": "If you encounter a flooded road while driving, you should:",
+                        "options": ["Drive through quickly", "Test the depth slowly", "Turn around and find another route", "Wait for other cars to go first"],
+                        "correct": 2
+                    },
+                    {
+                        "question": "When preparing for a flood, which action should you take first?",
+                        "options": ["Move to higher ground", "Gather important documents", "Fill bathtubs with water", "Board up windows"],
+                        "correct": 0
+                    },
+                    {
+                        "question": "After a flood, before entering your home you should:",
+                        "options": ["Rush in to assess damage", "Check for structural damage and hazards", "Turn on electricity to see better", "Start cleaning immediately"],
+                        "correct": 1
+                    }
+                ]
+            },
+            {
+                "title": "Emergency Kits Quiz",
+                "module_id": created_modules[3].id,
+                "questions": [
+                    {
+                        "question": "How much water should you store per person per day in an emergency kit?",
+                        "options": ["1/2 gallon", "1 gallon", "2 gallons", "3 gallons"],
+                        "correct": 1
+                    },
+                    {
+                        "question": "Emergency food supplies should last for at least:",
+                        "options": ["24 hours", "48 hours", "72 hours (3 days)", "1 week"],
+                        "correct": 2
+                    },
+                    {
+                        "question": "Which of these is NOT essential in a basic emergency kit?",
+                        "options": ["First aid kit", "Matches in waterproof container", "Laptop computer", "Battery-powered radio"],
+                        "correct": 2
+                    },
+                    {
+                        "question": "How often should you check and update your emergency kit?",
+                        "options": ["Once a year", "Every 6 months", "Every 3 months", "Only when items expire"],
+                        "correct": 1
+                    },
+                    {
+                        "question": "The best location for your home emergency kit is:",
+                        "options": ["In the basement", "In a cool, dry, easily accessible place", "In the garage", "In the attic"],
+                        "correct": 1
+                    }
+                ]
+            }
+        ]
+        
+        for quiz in quiz_data:
+            quiz_obj = Quiz(**quiz)
+            await db.quizzes.insert_one(quiz_obj.dict())
 
 # Authentication Routes
 @api_router.post("/auth/login", response_model=Token)
@@ -272,10 +437,64 @@ async def create_user(user: UserCreate, current_user: User = Depends(get_current
     await db.users.insert_one(user_in_db.dict())
     return User(**user_in_db.dict())
 
+# Module Routes
+@api_router.get("/modules", response_model=List[Module])
+async def get_modules(current_user: User = Depends(get_current_user)):
+    modules = await db.modules.find().sort("order", 1).to_list(length=None)
+    return [Module(**module) for module in modules]
+
+@api_router.get("/modules/{module_id}", response_model=Module)
+async def get_module(module_id: str, current_user: User = Depends(get_current_user)):
+    module = await db.modules.find_one({"id": module_id})
+    if not module:
+        raise HTTPException(status_code=404, detail="Module not found")
+    return Module(**module)
+
+# Video Completion Routes
+@api_router.post("/video-completion", response_model=VideoCompletion)
+async def mark_video_complete(completion: VideoCompletion, current_user: User = Depends(get_current_user)):
+    completion.user_id = current_user.id
+    
+    # Check if already completed
+    existing = await db.video_completions.find_one({
+        "user_id": current_user.id,
+        "module_id": completion.module_id
+    })
+    
+    if existing:
+        # Update existing completion
+        await db.video_completions.update_one(
+            {"user_id": current_user.id, "module_id": completion.module_id},
+            {"$set": completion.dict()}
+        )
+    else:
+        # Create new completion
+        await db.video_completions.insert_one(completion.dict())
+    
+    return completion
+
+@api_router.get("/video-completion/{module_id}")
+async def get_video_completion(module_id: str, current_user: User = Depends(get_current_user)):
+    completion = await db.video_completions.find_one({
+        "user_id": current_user.id,
+        "module_id": module_id
+    })
+    
+    if completion:
+        completion_obj = VideoCompletion(**completion)
+        return {"completed": True, "completion": completion_obj}
+    else:
+        return {"completed": False, "completion": None}
+
 # Quiz Routes
 @api_router.get("/quizzes", response_model=List[Quiz])
 async def get_quizzes(current_user: User = Depends(get_current_user)):
     quizzes = await db.quizzes.find().to_list(length=None)
+    return [Quiz(**quiz) for quiz in quizzes]
+
+@api_router.get("/quizzes/module/{module_id}", response_model=List[Quiz])
+async def get_module_quizzes(module_id: str, current_user: User = Depends(get_current_user)):
+    quizzes = await db.quizzes.find({"module_id": module_id}).to_list(length=None)
     return [Quiz(**quiz) for quiz in quizzes]
 
 @api_router.post("/quiz-attempts", response_model=QuizAttempt)
@@ -286,7 +505,7 @@ async def submit_quiz(attempt: QuizAttempt, current_user: User = Depends(get_cur
 
 @api_router.get("/quiz-attempts/{user_id}", response_model=List[QuizAttempt])
 async def get_quiz_attempts(user_id: str, current_user: User = Depends(get_current_user)):
-    if current_user.role != "admin" and current_user.id != user_id:
+    if current_user.role != "admin" and current_user.role != "teacher" and current_user.id != user_id:
         raise HTTPException(status_code=403, detail="Not authorized")
     
     attempts = await db.quiz_attempts.find({"user_id": user_id}).to_list(length=None)
@@ -417,10 +636,10 @@ async def get_predictions(current_user: User = Depends(get_current_user)):
     predictions = await db.disaster_predictions.find().sort("predicted_at", -1).limit(50).to_list(length=None)
     return [DisasterPrediction(**pred) for pred in predictions]
 
-# User Stats Route
+# Enhanced User Stats Route
 @api_router.get("/user-stats/{user_id}")
 async def get_user_stats(user_id: str, current_user: User = Depends(get_current_user)):
-    if current_user.role != "admin" and current_user.id != user_id:
+    if current_user.role != "admin" and current_user.role != "teacher" and current_user.id != user_id:
         raise HTTPException(status_code=403, detail="Not authorized")
     
     # Get quiz attempts
@@ -431,6 +650,38 @@ async def get_user_stats(user_id: str, current_user: User = Depends(get_current_
     # Get drill participations
     drill_participations = await db.drill_participations.find({"user_id": user_id}).to_list(length=None)
     total_drills = len(drill_participations)
+    
+    # Get video completions
+    video_completions = await db.video_completions.find({"user_id": user_id}).to_list(length=None)
+    completed_modules = len(video_completions)
+    
+    # Get module progress
+    modules = await db.modules.find().sort("order", 1).to_list(length=None)
+    module_progress = []
+    
+    for module in modules:
+        # Check video completion
+        video_completed = await db.video_completions.find_one({
+            "user_id": user_id, 
+            "module_id": module["id"]
+        })
+        
+        # Check quiz attempts for this module
+        quiz_attempt = await db.quiz_attempts.find_one({
+            "user_id": user_id,
+            "module_id": module["id"]
+        })
+        
+        module_progress.append({
+            "module_id": module["id"],
+            "module_title": module["title"],
+            "video_completed": video_completed is not None,
+            "video_completed_at": video_completed["completed_at"] if video_completed else None,
+            "quiz_completed": quiz_attempt is not None,
+            "quiz_score": quiz_attempt["score"] if quiz_attempt else 0,
+            "quiz_total": quiz_attempt["total_questions"] if quiz_attempt else 0,
+            "quiz_completed_at": quiz_attempt["completed_at"] if quiz_attempt else None
+        })
     
     # Convert MongoDB documents to JSON-serializable format
     recent_quiz_attempts = []
@@ -450,8 +701,54 @@ async def get_user_stats(user_id: str, current_user: User = Depends(get_current_
         "total_quizzes_completed": total_quizzes,
         "total_points": total_points,
         "total_drills_participated": total_drills,
+        "completed_modules": completed_modules,
+        "total_modules": len(modules),
+        "module_progress": module_progress,
         "recent_quiz_attempts": recent_quiz_attempts,
         "recent_drill_participations": recent_drill_participations
+    }
+
+# Teacher Dashboard - All Students Progress
+@api_router.get("/teacher/students-progress")
+async def get_all_students_progress(current_user: User = Depends(get_current_user)):
+    if current_user.role != "admin" and current_user.role != "teacher":
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Get all students
+    students = await db.users.find({"role": "student"}).to_list(length=None)
+    
+    students_progress = []
+    for student in students:
+        # Get student stats
+        stats = await get_user_stats(student["id"], current_user)
+        students_progress.append({
+            "student_id": student["id"],
+            "student_name": student["full_name"],
+            "student_username": student["username"],
+            "total_points": stats["total_points"],
+            "completed_modules": stats["completed_modules"],
+            "total_modules": stats["total_modules"],
+            "total_quizzes": stats["total_quizzes_completed"],
+            "module_progress": stats["module_progress"]
+        })
+    
+    # Calculate class statistics
+    total_students = len(students_progress)
+    if total_students > 0:
+        avg_points = sum(s["total_points"] for s in students_progress) / total_students
+        avg_modules = sum(s["completed_modules"] for s in students_progress) / total_students
+        avg_quizzes = sum(s["total_quizzes"] for s in students_progress) / total_students
+    else:
+        avg_points = avg_modules = avg_quizzes = 0
+    
+    return {
+        "students_progress": students_progress,
+        "class_statistics": {
+            "total_students": total_students,
+            "average_points": round(avg_points, 1),
+            "average_modules_completed": round(avg_modules, 1),
+            "average_quizzes_completed": round(avg_quizzes, 1)
+        }
     }
 
 # Include the router in the main app
