@@ -362,28 +362,121 @@ class DisasterPreparednessAPITester:
             token=self.student_token
         )
 
-    def test_user_stats(self):
-        """Test user statistics endpoint"""
+    def test_modules_and_videos(self):
+        """Test modules and video completion functionality"""
         print("\n" + "="*50)
-        print("TESTING USER STATISTICS")
+        print("TESTING MODULES AND VIDEO COMPLETION")
         print("="*50)
         
-        if not self.student_token or not self.student_user:
-            print("❌ Skipping user stats tests - no student token/user")
+        if not self.student_token:
+            print("❌ Skipping modules tests - no student token")
             return
         
-        success, stats = self.run_test(
-            "Get Student Statistics",
+        # Get all modules
+        success, modules = self.run_test(
+            "Get All Modules",
             "GET",
-            f"/user-stats/{self.student_user['id']}",
+            "/modules",
             200,
             token=self.student_token
         )
         
-        if success and stats:
-            print(f"  Total Points: {stats.get('total_points', 0)}")
-            print(f"  Quizzes Completed: {stats.get('total_quizzes_completed', 0)}")
-            print(f"  Drills Participated: {stats.get('total_drills_participated', 0)}")
+        if success and modules:
+            print(f"Found {len(modules)} modules")
+            expected_modules = ["Fire Safety", "Earthquake Response", "Flood Preparedness", "Emergency Kits"]
+            expected_videos = [
+                "https://youtu.be/ReL-DM9xhpI",
+                "https://youtu.be/BLEPakj1YTY", 
+                "https://youtu.be/43M5mZuzHF8",
+                "https://youtu.be/UmiGvOha7As"
+            ]
+            
+            for i, module in enumerate(modules):
+                print(f"  Module {i+1}: {module['title']} - {module['video_duration']} min")
+                print(f"    Video URL: {module['video_url']}")
+                print(f"    Description: {module['description'][:50]}...")
+                
+                # Check if module title matches expected
+                if module['title'] in expected_modules:
+                    print(f"    ✅ Module title matches expected")
+                else:
+                    print(f"    ❌ Unexpected module title: {module['title']}")
+                
+                # Test video completion
+                video_completion_data = {
+                    "module_id": module['id'],
+                    "watch_percentage": 100.0
+                }
+                
+                success_video, _ = self.run_test(
+                    f"Mark Video Complete - {module['title']}",
+                    "POST",
+                    "/video-completion",
+                    200,
+                    data=video_completion_data,
+                    token=self.student_token
+                )
+                
+                # Check video completion status
+                self.run_test(
+                    f"Get Video Completion Status - {module['title']}",
+                    "GET",
+                    f"/video-completion/{module['id']}",
+                    200,
+                    token=self.student_token
+                )
+                
+                # Get quizzes for this module
+                success_quiz, module_quizzes = self.run_test(
+                    f"Get Quizzes for {module['title']}",
+                    "GET",
+                    f"/quizzes/module/{module['id']}",
+                    200,
+                    token=self.student_token
+                )
+                
+                if success_quiz and module_quizzes:
+                    quiz = module_quizzes[0]
+                    print(f"    Quiz: {quiz['title']} with {len(quiz['questions'])} questions")
+                    
+                    # Verify quiz has 5 questions as mentioned in requirements
+                    if len(quiz['questions']) == 5:
+                        print(f"    ✅ Quiz has correct number of questions (5)")
+                    else:
+                        print(f"    ❌ Quiz has {len(quiz['questions'])} questions, expected 5")
+
+    def test_teacher_dashboard(self):
+        """Test teacher dashboard functionality"""
+        print("\n" + "="*50)
+        print("TESTING TEACHER DASHBOARD")
+        print("="*50)
+        
+        if not self.teacher_token:
+            print("❌ Skipping teacher dashboard tests - no teacher token")
+            return
+        
+        # Test teacher students progress endpoint
+        success, progress_data = self.run_test(
+            "Get Students Progress (Teacher)",
+            "GET",
+            "/teacher/students-progress",
+            200,
+            token=self.teacher_token
+        )
+        
+        if success and progress_data:
+            students = progress_data.get('students_progress', [])
+            class_stats = progress_data.get('class_statistics', {})
+            
+            print(f"Found {len(students)} students in class")
+            print(f"Class Statistics:")
+            print(f"  Total Students: {class_stats.get('total_students', 0)}")
+            print(f"  Average Points: {class_stats.get('average_points', 0)}")
+            print(f"  Average Modules: {class_stats.get('average_modules_completed', 0)}")
+            print(f"  Average Quizzes: {class_stats.get('average_quizzes_completed', 0)}")
+            
+            for student in students:
+                print(f"  Student: {student['student_name']} - Points: {student['total_points']}, Modules: {student['completed_modules']}/{student['total_modules']}")
 
 def main():
     print("🚀 Starting Disaster Preparedness API Testing")
