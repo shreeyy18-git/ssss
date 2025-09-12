@@ -478,6 +478,40 @@ class DisasterPreparednessAPITester:
             for student in students:
                 print(f"  Student: {student['student_name']} - Points: {student['total_points']}, Modules: {student['completed_modules']}/{student['total_modules']}")
 
+    def test_user_stats(self):
+        """Test user statistics endpoint"""
+        print("\n" + "="*50)
+        print("TESTING USER STATISTICS")
+        print("="*50)
+        
+        if not self.student_token or not self.student_user:
+            print("❌ Skipping user stats tests - no student token/user")
+            return
+        
+        success, stats = self.run_test(
+            "Get Student Statistics",
+            "GET",
+            f"/user-stats/{self.student_user['id']}",
+            200,
+            token=self.student_token
+        )
+        
+        if success and stats:
+            print(f"  Total Points: {stats.get('total_points', 0)}")
+            print(f"  Quizzes Completed: {stats.get('total_quizzes_completed', 0)}")
+            print(f"  Drills Participated: {stats.get('total_drills_participated', 0)}")
+            print(f"  Completed Modules: {stats.get('completed_modules', 0)}/{stats.get('total_modules', 0)}")
+            
+            # Check module progress details
+            module_progress = stats.get('module_progress', [])
+            if module_progress:
+                print(f"  Module Progress Details:")
+                for progress in module_progress:
+                    video_status = "✅" if progress.get('video_completed') else "❌"
+                    quiz_status = "✅" if progress.get('quiz_completed') else "❌"
+                    quiz_score = f"({progress.get('quiz_score', 0)}/{progress.get('quiz_total', 0)})" if progress.get('quiz_completed') else ""
+                    print(f"    {progress['module_title']}: Video {video_status}, Quiz {quiz_status} {quiz_score}")
+
 def main():
     print("🚀 Starting Disaster Preparedness API Testing")
     print("=" * 60)
@@ -487,11 +521,13 @@ def main():
     # Run all tests
     tester.test_authentication()
     tester.test_user_management()
+    tester.test_modules_and_videos()  # New test for modules and videos
     tester.test_quiz_system()
     tester.test_drill_system()
     tester.test_alert_system()
     tester.test_emergency_contacts()
     tester.test_disaster_prediction()
+    tester.test_teacher_dashboard()  # New test for teacher dashboard
     tester.test_user_stats()
     
     # Print final results
