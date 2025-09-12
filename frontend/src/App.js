@@ -34,7 +34,7 @@ import {
 } from 'lucide-react';
 import { toast, Toaster } from 'sonner';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'https://readyresponse.preview.emergentagent.com';
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'https://lecture-quiz.preview.emergentagent.com';
 const API = `${BACKEND_URL}/api`;
 
 // Set up axios defaults
