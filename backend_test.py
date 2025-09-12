@@ -172,6 +172,7 @@ class DisasterPreparednessAPITester:
             # Submit a quiz attempt
             quiz_attempt = {
                 "quiz_id": quiz['id'],
+                "module_id": quiz['module_id'],  # Add missing module_id
                 "score": 2,
                 "total_questions": len(quiz['questions']),
                 "answers": [
