@@ -913,7 +913,7 @@ const Dashboard = ({ user, onLogout }) => {
                       </span>
                     </div>
                     
-                    {getModuleProgress(currentModule.id).videoCompleted && (
+                    {getModuleProgress(currentModule.id).videoCompleted && user.role === 'student' && (
                       <Button 
                         onClick={() => handleTakeQuiz(currentModule)}
                         className="bg-blue-600 hover:bg-blue-700"
@@ -921,6 +921,13 @@ const Dashboard = ({ user, onLogout }) => {
                         <GraduationCap className="h-4 w-4 mr-2" />
                         Take Quiz
                       </Button>
+                    )}
+                    
+                    {getModuleProgress(currentModule.id).videoCompleted && user.role === 'teacher' && (
+                      <div className="text-center">
+                        <p className="text-blue-800 text-sm font-medium">📊 Module Complete</p>
+                        <p className="text-blue-600 text-xs">View student quiz progress in Class Progress tab</p>
+                      </div>
                     )}
                   </div>
                   
