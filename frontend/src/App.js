@@ -84,7 +84,7 @@ const YouTubePlayer = ({ videoUrl, onVideoEnd, className = "" }) => {
 };
 
 // Module Card Component
-const ModuleCard = ({ module, videoCompleted, quizCompleted, quizScore, onStartModule, onTakeQuiz }) => {
+const ModuleCard = ({ module, videoCompleted, quizCompleted, quizScore, onStartModule, onTakeQuiz, userRole }) => {
   const getModuleIcon = (title) => {
     switch (title) {
       case 'Fire Safety': return <Flame className="h-6 w-6" />;
