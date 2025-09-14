@@ -148,27 +148,36 @@ const ModuleCard = ({ module, videoCompleted, quizCompleted, quizScore, onStartM
       <div className="flex space-x-2">
         <Button 
           onClick={() => onStartModule(module)}
-          className="flex-1"
+          className={userRole === 'student' ? "flex-1" : "w-full"}
           variant={videoCompleted ? "outline" : "default"}
         >
           <Play className="h-4 w-4 mr-2" />
           {videoCompleted ? "Rewatch Video" : "Start Module"}
         </Button>
         
-        <Button 
-          onClick={() => onTakeQuiz(module)}
-          disabled={!videoCompleted}
-          variant={quizCompleted ? "outline" : "default"}
-          className="flex-1"
-        >
-          <GraduationCap className="h-4 w-4 mr-2" />
-          {quizCompleted ? "Retake Quiz" : "Take Quiz"}
-        </Button>
+        {/* Quiz functionality only available for students */}
+        {userRole === 'student' && (
+          <Button 
+            onClick={() => onTakeQuiz(module)}
+            disabled={!videoCompleted}
+            variant={quizCompleted ? "outline" : "default"}
+            className="flex-1"
+          >
+            <GraduationCap className="h-4 w-4 mr-2" />
+            {quizCompleted ? "Retake Quiz" : "Take Quiz"}
+          </Button>
+        )}
       </div>
       
-      {!videoCompleted && (
+      {userRole === 'student' && !videoCompleted && (
         <p className="text-xs text-gray-500 mt-2 text-center">
           Complete the video to unlock the quiz
+        </p>
+      )}
+      
+      {userRole === 'teacher' && (
+        <p className="text-xs text-blue-600 mt-2 text-center">
+          📊 Teachers can view student quiz progress in "Class Progress" tab
         </p>
       )}
     </Card>
