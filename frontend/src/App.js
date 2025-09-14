@@ -992,6 +992,7 @@ const Dashboard = ({ user, onLogout }) => {
                         quizScore={progress.quizScore}
                         onStartModule={handleStartModule}
                         onTakeQuiz={handleTakeQuiz}
+                        userRole={user.role}
                       />
                     );
                   })}
