@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 
 class DisasterPreparednessAPITester:
-    def __init__(self, base_url="https://lecture-quiz.preview.emergentagent.com/api"):
+    def __init__(self, base_url="https://quiz-visibility-fix.preview.emergentagent.com/api"):
         self.base_url = base_url
         self.admin_token = None
         self.teacher_token = None
