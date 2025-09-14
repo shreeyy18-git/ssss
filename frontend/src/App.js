@@ -976,7 +976,10 @@ const Dashboard = ({ user, onLogout }) => {
                 <div className="mb-6">
                   <h2 className="text-2xl font-bold text-gray-900 mb-2">Learning Modules</h2>
                   <p className="text-gray-600">
-                    Complete each module by watching the video and taking the quiz to earn points.
+                    {user.role === 'student' 
+                      ? "Complete each module by watching the video and taking the quiz to earn points."
+                      : "Educational modules for disaster preparedness training. View student quiz progress in the Class Progress tab."
+                    }
                   </p>
                 </div>
                 
