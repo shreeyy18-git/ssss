@@ -566,6 +566,12 @@ const Dashboard = ({ user, onLogout }) => {
   };
 
   const handleTakeQuiz = async (module) => {
+    // Restrict quiz access to students only
+    if (user.role !== 'student') {
+      toast.error('Quiz functionality is only available for students. Teachers can view student progress in Class Progress tab.');
+      return;
+    }
+    
     try {
       const quizzesResponse = await axios.get(`/quizzes/module/${module.id}`);
       if (quizzesResponse.data.length > 0) {
