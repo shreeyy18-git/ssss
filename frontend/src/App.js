@@ -931,10 +931,18 @@ const Dashboard = ({ user, onLogout }) => {
                     )}
                   </div>
                   
-                  {!getModuleProgress(currentModule.id).videoCompleted && (
+                  {!getModuleProgress(currentModule.id).videoCompleted && user.role === 'student' && (
                     <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
                       <p className="text-yellow-800 text-sm">
                         📺 Watch the complete video to unlock the quiz for this module.
+                      </p>
+                    </div>
+                  )}
+                  
+                  {!getModuleProgress(currentModule.id).videoCompleted && user.role === 'teacher' && (
+                    <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                      <p className="text-blue-800 text-sm">
+                        📚 Educational content for disaster preparedness training.
                       </p>
                     </div>
                   )}
