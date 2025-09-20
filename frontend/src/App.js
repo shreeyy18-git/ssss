@@ -13,6 +13,8 @@ import { Badge } from './components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from './components/ui/alert';
 import { Separator } from './components/ui/separator';
 import { Progress } from './components/ui/progress';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from './components/ui/dialog';
+import { Textarea } from './components/ui/textarea';
 import { 
   Shield, 
   Users, 
@@ -35,7 +37,15 @@ import {
   CheckCircle,
   Clock,
   Award,
-  GraduationCap
+  GraduationCap,
+  Edit,
+  Trash2,
+  Crown,
+  Medal,
+  Star,
+  TrendingUp,
+  FileText,
+  PlusCircle
 } from 'lucide-react';
 import { toast, Toaster } from 'sonner';
 
@@ -83,7 +93,419 @@ const YouTubePlayer = ({ videoUrl, onVideoEnd, className = "" }) => {
   );
 };
 
-// Module Card Component
+// Quiz Management Component for Teachers
+const QuizManager = ({ user, onRefresh }) => {
+  const [quizzes, setQuizzes] = useState([]);
+  const [modules, setModules] = useState([]);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [editingQuiz, setEditingQuiz] = useState(null);
+  const [newQuiz, setNewQuiz] = useState({
+    title: '',
+    module_id: '',
+    questions: [{ question: '', options: ['', '', '', ''], correct: 0 }]
+  });
+
+  useEffect(() => {
+    loadQuizzes();
+    loadModules();
+  }, []);
+
+  const loadQuizzes = async () => {
+    try {
+      const response = await axios.get('/teacher/quizzes');
+      setQuizzes(response.data);
+    } catch (error) {
+      toast.error('Error loading quizzes');
+    }
+  };
+
+  const loadModules = async () => {
+    try {
+      const response = await axios.get('/modules');
+      setModules(response.data);
+    } catch (error) {
+      toast.error('Error loading modules');
+    }
+  };
+
+  const handleCreateQuiz = async () => {
+    try {
+      await axios.post('/teacher/quizzes', newQuiz);
+      toast.success('Quiz created successfully!');
+      setIsCreateDialogOpen(false);
+      setNewQuiz({
+        title: '',
+        module_id: '',
+        questions: [{ question: '', options: ['', '', '', ''], correct: 0 }]
+      });
+      loadQuizzes();
+      onRefresh && onRefresh();
+    } catch (error) {
+      toast.error('Error creating quiz');
+    }
+  };
+
+  const handleUpdateQuiz = async () => {
+    try {
+      await axios.put(`/teacher/quizzes/${editingQuiz.id}`, newQuiz);
+      toast.success('Quiz updated successfully!');
+      setEditingQuiz(null);
+      setNewQuiz({
+        title: '',
+        module_id: '',
+        questions: [{ question: '', options: ['', '', '', ''], correct: 0 }]
+      });
+      loadQuizzes();
+      onRefresh && onRefresh();
+    } catch (error) {
+      toast.error('Error updating quiz');
+    }
+  };
+
+  const handleDeleteQuiz = async (quizId) => {
+    if (window.confirm('Are you sure you want to delete this quiz?')) {
+      try {
+        await axios.delete(`/teacher/quizzes/${quizId}`);
+        toast.success('Quiz deleted successfully!');
+        loadQuizzes();
+        onRefresh && onRefresh();
+      } catch (error) {
+        toast.error('Error deleting quiz');
+      }
+    }
+  };
+
+  const addQuestion = () => {
+    setNewQuiz({
+      ...newQuiz,
+      questions: [...newQuiz.questions, { question: '', options: ['', '', '', ''], correct: 0 }]
+    });
+  };
+
+  const updateQuestion = (index, field, value) => {
+    const updatedQuestions = [...newQuiz.questions];
+    if (field === 'question') {
+      updatedQuestions[index].question = value;
+    } else if (field.startsWith('option')) {
+      const optionIndex = parseInt(field.split('_')[1]);
+      updatedQuestions[index].options[optionIndex] = value;
+    } else if (field === 'correct') {
+      updatedQuestions[index].correct = parseInt(value);
+    }
+    setNewQuiz({ ...newQuiz, questions: updatedQuestions });
+  };
+
+  const removeQuestion = (index) => {
+    if (newQuiz.questions.length > 1) {
+      const updatedQuestions = newQuiz.questions.filter((_, i) => i !== index);
+      setNewQuiz({ ...newQuiz, questions: updatedQuestions });
+    }
+  };
+
+  const startEdit = (quiz) => {
+    setEditingQuiz(quiz);
+    setNewQuiz({
+      title: quiz.title,
+      module_id: quiz.module_id,
+      questions: quiz.questions
+    });
+    setIsCreateDialogOpen(true);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Quiz Management</h2>
+          <p className="text-gray-600">Create and manage quizzes for your students</p>
+        </div>
+        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="bg-blue-600 hover:bg-blue-700">
+              <PlusCircle className="h-4 w-4 mr-2" />
+              Create Quiz
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{editingQuiz ? 'Edit Quiz' : 'Create New Quiz'}</DialogTitle>
+              <DialogDescription>
+                {editingQuiz ? 'Update the quiz details below' : 'Create a new quiz for your students'}
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="quiz-title">Quiz Title</Label>
+                <Input
+                  id="quiz-title"
+                  value={newQuiz.title}
+                  onChange={(e) => setNewQuiz({ ...newQuiz, title: e.target.value })}
+                  placeholder="Enter quiz title"
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="module-select">Associated Module (Optional)</Label>
+                <select
+                  id="module-select"
+                  value={newQuiz.module_id}
+                  onChange={(e) => setNewQuiz({ ...newQuiz, module_id: e.target.value })}
+                  className="w-full p-2 border rounded-md"
+                >
+                  <option value="">Standalone Quiz</option>
+                  {modules.map((module) => (
+                    <option key={module.id} value={module.id}>
+                      {module.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <Label>Questions</Label>
+                  <Button type="button" onClick={addQuestion} variant="outline" size="sm">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Question
+                  </Button>
+                </div>
+                
+                {newQuiz.questions.map((question, qIndex) => (
+                  <Card key={qIndex} className="p-4">
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <Label>Question {qIndex + 1}</Label>
+                        {newQuiz.questions.length > 1 && (
+                          <Button
+                            type="button"
+                            onClick={() => removeQuestion(qIndex)}
+                            variant="outline"
+                            size="sm"
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                      
+                      <Textarea
+                        value={question.question}
+                        onChange={(e) => updateQuestion(qIndex, 'question', e.target.value)}
+                        placeholder="Enter your question"
+                        rows={2}
+                      />
+                      
+                      <div className="space-y-2">
+                        <Label>Answer Options</Label>
+                        {question.options.map((option, oIndex) => (
+                          <div key={oIndex} className="flex items-center space-x-2">
+                            <input
+                              type="radio"
+                              name={`correct-${qIndex}`}
+                              checked={question.correct === oIndex}
+                              onChange={() => updateQuestion(qIndex, 'correct', oIndex)}
+                              className="form-radio text-blue-600"
+                            />
+                            <Input
+                              value={option}
+                              onChange={(e) => updateQuestion(qIndex, `option_${oIndex}`, e.target.value)}
+                              placeholder={`Option ${oIndex + 1}`}
+                              className="flex-1"
+                            />
+                            <span className="text-sm text-gray-500 min-w-[80px]">
+                              {question.correct === oIndex ? '(Correct)' : ''}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsCreateDialogOpen(false);
+                  setEditingQuiz(null);
+                  setNewQuiz({
+                    title: '',
+                    module_id: '',
+                    questions: [{ question: '', options: ['', '', '', ''], correct: 0 }]
+                  });
+                }}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={editingQuiz ? handleUpdateQuiz : handleCreateQuiz}
+                disabled={!newQuiz.title || newQuiz.questions.some(q => !q.question || q.options.some(o => !o))}
+              >
+                {editingQuiz ? 'Update Quiz' : 'Create Quiz'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      <div className="grid gap-4">
+        {quizzes.length === 0 ? (
+          <Card className="p-8 text-center">
+            <FileText className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No Quizzes Yet</h3>
+            <p className="text-gray-600 mb-4">Create your first quiz to get started!</p>
+          </Card>
+        ) : (
+          quizzes.map((quiz) => (
+            <Card key={quiz.id} className="p-4">
+              <div className="flex justify-between items-start">
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-gray-900">{quiz.title}</h3>
+                  <div className="flex items-center space-x-4 text-sm text-gray-600 mt-1">
+                    <span>{quiz.questions.length} questions</span>
+                    <span>
+                      {quiz.module_id 
+                        ? `Module: ${modules.find(m => m.id === quiz.module_id)?.title || 'Unknown'}` 
+                        : 'Standalone Quiz'
+                      }
+                    </span>
+                    <span>Created: {new Date(quiz.created_at).toLocaleDateString()}</span>
+                  </div>
+                </div>
+                <div className="flex space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => startEdit(quiz)}
+                  >
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDeleteQuiz(quiz.id)}
+                    className="text-red-600 hover:text-red-700"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          ))
+        )}
+      </div>
+    </div>
+  );
+};
+
+// Leaderboard Component
+const Leaderboard = ({ user }) => {
+  const [leaderboardData, setLeaderboardData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadLeaderboard();
+  }, []);
+
+  const loadLeaderboard = async () => {
+    try {
+      const response = await axios.get('/leaderboard');
+      setLeaderboardData(response.data);
+    } catch (error) {
+      toast.error('Error loading leaderboard');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="text-center py-8">Loading leaderboard...</div>;
+  }
+
+  const getRankIcon = (rank) => {
+    switch (rank) {
+      case 1: return <Crown className="h-6 w-6 text-yellow-500" />;
+      case 2: return <Medal className="h-6 w-6 text-gray-400" />;
+      case 3: return <Award className="h-6 w-6 text-orange-500" />;
+      default: return <Star className="h-6 w-6 text-blue-500" />;
+    }
+  };
+
+  const getRankColor = (rank) => {
+    switch (rank) {
+      case 1: return 'from-yellow-50 to-yellow-100 border-yellow-200';
+      case 2: return 'from-gray-50 to-gray-100 border-gray-200';
+      case 3: return 'from-orange-50 to-orange-100 border-orange-200';
+      default: return 'from-blue-50 to-blue-100 border-blue-200';
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Student Leaderboard</h2>
+        <p className="text-gray-600">Top performing students based on quiz scores and completion speed</p>
+      </div>
+
+      {user.role === 'student' && leaderboardData?.current_user_rank && (
+        <Card className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+          <div className="flex items-center space-x-3">
+            <TrendingUp className="h-6 w-6 text-blue-600" />
+            <div>
+              <h3 className="font-semibold text-blue-900">Your Current Rank</h3>
+              <p className="text-blue-700">
+                Rank #{leaderboardData.current_user_rank} out of {leaderboardData.total_students} students
+              </p>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      <div className="grid gap-4">
+        {leaderboardData?.leaderboard?.map((student) => (
+          <Card key={student.student_id} className={`p-4 bg-gradient-to-r ${getRankColor(student.rank)}`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  {getRankIcon(student.rank)}
+                  <span className="text-2xl font-bold text-gray-700">#{student.rank}</span>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900">{student.student_name}</h3>
+                  <p className="text-sm text-gray-600">@{student.student_username}</p>
+                </div>
+              </div>
+              <div className="text-right space-y-1">
+                <div className="text-lg font-bold text-gray-900">{student.overall_score} pts</div>
+                <div className="text-sm text-gray-600">
+                  {student.completed_modules}/{student.total_modules} modules • {student.total_quizzes} quizzes
+                </div>
+                <div className="text-xs text-gray-500">
+                  Speed: {student.completion_speed} modules/day
+                </div>
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      {(!leaderboardData?.leaderboard || leaderboardData.leaderboard.length === 0) && (
+        <Card className="p-8 text-center">
+          <Trophy className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No Rankings Yet</h3>
+          <p className="text-gray-600">Complete quizzes to appear on the leaderboard!</p>
+        </Card>
+      )}
+    </div>
+  );
+};
+
+// Module Card Component (only for students now)
 const ModuleCard = ({ module, videoCompleted, quizCompleted, quizScore, onStartModule, onTakeQuiz, userRole }) => {
   const getModuleIcon = (title) => {
     switch (title) {
@@ -148,36 +570,27 @@ const ModuleCard = ({ module, videoCompleted, quizCompleted, quizScore, onStartM
       <div className="flex space-x-2">
         <Button 
           onClick={() => onStartModule(module)}
-          className={userRole === 'student' ? "flex-1" : "w-full"}
+          className="flex-1"
           variant={videoCompleted ? "outline" : "default"}
         >
           <Play className="h-4 w-4 mr-2" />
           {videoCompleted ? "Rewatch Video" : "Start Module"}
         </Button>
         
-        {/* Quiz functionality only available for students */}
-        {userRole === 'student' && (
-          <Button 
-            onClick={() => onTakeQuiz(module)}
-            disabled={!videoCompleted}
-            variant={quizCompleted ? "outline" : "default"}
-            className="flex-1"
-          >
-            <GraduationCap className="h-4 w-4 mr-2" />
-            {quizCompleted ? "Retake Quiz" : "Take Quiz"}
-          </Button>
-        )}
+        <Button 
+          onClick={() => onTakeQuiz(module)}
+          disabled={!videoCompleted}
+          variant={quizCompleted ? "outline" : "default"}
+          className="flex-1"
+        >
+          <GraduationCap className="h-4 w-4 mr-2" />
+          {quizCompleted ? "Retake Quiz" : "Take Quiz"}
+        </Button>
       </div>
       
-      {userRole === 'student' && !videoCompleted && (
+      {!videoCompleted && (
         <p className="text-xs text-gray-500 mt-2 text-center">
           Complete the video to unlock the quiz
-        </p>
-      )}
-      
-      {userRole === 'teacher' && (
-        <p className="text-xs text-blue-600 mt-2 text-center">
-          📊 Teachers can view student quiz progress in "Class Progress" tab
         </p>
       )}
     </Card>
@@ -493,6 +906,7 @@ const Dashboard = ({ user, onLogout }) => {
   const [predictions, setPredictions] = useState([]);
   const [studentsProgress, setStudentsProgress] = useState([]);
   const [classStats, setClassStats] = useState(null);
+  const [teachersProgress, setTeachersProgress] = useState([]);
   const [newAlert, setNewAlert] = useState({
     title: '',
     message: '',
@@ -511,9 +925,11 @@ const Dashboard = ({ user, onLogout }) => {
       const alertsResponse = await axios.get('/alerts');
       setAlerts(alertsResponse.data);
 
-      // Load user stats
-      const statsResponse = await axios.get(`/user-stats/${user.id}`);
-      setUserStats(statsResponse.data);
+      // Load user stats (only for students)
+      if (user.role === 'student') {
+        const statsResponse = await axios.get(`/user-stats/${user.id}`);
+        setUserStats(statsResponse.data);
+      }
 
       // Load emergency contacts
       const contactsResponse = await axios.get('/emergency-contacts');
@@ -523,17 +939,23 @@ const Dashboard = ({ user, onLogout }) => {
       if (user.role === 'admin') {
         const usersResponse = await axios.get('/users');
         setUsers(usersResponse.data);
+        
+        // Load teachers progress for admin
+        const teachersResponse = await axios.get('/admin/teachers-progress');
+        setTeachersProgress(teachersResponse.data.teachers_progress);
       }
 
-      // Load modules
-      const modulesResponse = await axios.get('/modules');
-      setModules(modulesResponse.data);
+      // Load modules (only for students)
+      if (user.role === 'student') {
+        const modulesResponse = await axios.get('/modules');
+        setModules(modulesResponse.data);
+      }
 
       // Load predictions
       const predictionsResponse = await axios.get('/predictions');
       setPredictions(predictionsResponse.data);
 
-      // Load students progress for teachers
+      // Load students progress for teachers and admin
       if (user.role === 'teacher' || user.role === 'admin') {
         const progressResponse = await axios.get('/teacher/students-progress');
         setStudentsProgress(progressResponse.data.students_progress);
@@ -566,12 +988,6 @@ const Dashboard = ({ user, onLogout }) => {
   };
 
   const handleTakeQuiz = async (module) => {
-    // Restrict quiz access to students only
-    if (user.role !== 'student') {
-      toast.error('Quiz functionality is only available for students. Teachers can view student progress in Class Progress tab.');
-      return;
-    }
-    
     try {
       const quizzesResponse = await axios.get(`/quizzes/module/${module.id}`);
       if (quizzesResponse.data.length > 0) {
@@ -618,19 +1034,6 @@ const Dashboard = ({ user, onLogout }) => {
       loadDashboardData(); // Refresh stats
     } catch (error) {
       toast.error('Error submitting quiz');
-    }
-  };
-
-  const handleDrillParticipation = async (drillType) => {
-    try {
-      await axios.post('/drills', {
-        drill_type: drillType,
-        notes: `Participated in ${drillType} drill`
-      });
-      toast.success(`${drillType} drill participation recorded!`);
-      loadDashboardData(); // Refresh stats
-    } catch (error) {
-      toast.error('Error recording drill participation');
     }
   };
 
@@ -695,6 +1098,48 @@ const Dashboard = ({ user, onLogout }) => {
     };
   };
 
+  // Define tabs based on user role
+  const getTabsForRole = () => {
+    switch (user.role) {
+      case 'student':
+        return [
+          { value: 'dashboard', label: 'Dashboard' },
+          { value: 'modules', label: 'Learning Modules' },
+          { value: 'leaderboard', label: 'Leaderboard' },
+          { value: 'alerts', label: 'Alerts' },
+          { value: 'contacts', label: 'Emergency Contacts' },
+          { value: 'prediction', label: 'Risk Analysis' }
+        ];
+        
+      case 'teacher':
+        return [
+          { value: 'dashboard', label: 'Dashboard' },
+          { value: 'student-progress', label: 'Student Performance' },
+          { value: 'quiz-management', label: 'Quiz Management' },
+          { value: 'leaderboard', label: 'Leaderboard' },
+          { value: 'alerts', label: 'Alerts' },
+          { value: 'contacts', label: 'Emergency Contacts' },
+          { value: 'prediction', label: 'Risk Analysis' }
+        ];
+        
+      case 'admin':
+        return [
+          { value: 'dashboard', label: 'Dashboard' },
+          { value: 'student-progress', label: 'Student Progress' },
+          { value: 'teacher-progress', label: 'Teacher Progress' },
+          { value: 'leaderboard', label: 'Leaderboard' },
+          { value: 'alerts', label: 'Alerts' },
+          { value: 'contacts', label: 'Emergency Contacts' },
+          { value: 'prediction', label: 'Risk Analysis' }
+        ];
+        
+      default:
+        return [];
+    }
+  };
+
+  const tabs = getTabsForRole();
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -726,104 +1171,216 @@ const Dashboard = ({ user, onLogout }) => {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3 lg:grid-cols-7">
-            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-            <TabsTrigger value="modules">Modules</TabsTrigger>
-            <TabsTrigger value="drills">Drills</TabsTrigger>
-            <TabsTrigger value="alerts">Alerts</TabsTrigger>
-            <TabsTrigger value="contacts">Contacts</TabsTrigger>
-            <TabsTrigger value="prediction">Risk Analysis</TabsTrigger>
-            {(user.role === 'teacher' || user.role === 'admin') && (
-              <TabsTrigger value="teacher">Class Progress</TabsTrigger>
-            )}
+          <TabsList className="grid w-full" style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>
+            {tabs.map((tab) => (
+              <TabsTrigger key={tab.value} value={tab.value}>
+                {tab.label}
+              </TabsTrigger>
+            ))}
           </TabsList>
 
           {/* Dashboard Tab */}
           <TabsContent value="dashboard" className="space-y-6">
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Points</CardTitle>
-                  <Trophy className="h-4 w-4 text-yellow-600" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{userStats?.total_points || 0}</div>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Modules Completed</CardTitle>
-                  <BookOpen className="h-4 w-4 text-blue-600" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">
-                    {userStats?.completed_modules || 0}/{userStats?.total_modules || 0}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Quizzes Completed</CardTitle>
-                  <GraduationCap className="h-4 w-4 text-emerald-600" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{userStats?.total_quizzes_completed || 0}</div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Active Alerts</CardTitle>
-                  <AlertTriangle className="h-4 w-4 text-red-600" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{alerts.length}</div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Module Progress Overview */}
-            {userStats?.module_progress && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Learning Progress</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {userStats.module_progress.map((progress) => (
-                      <div key={progress.module_id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div>
-                          <h4 className="font-medium">{progress.module_title}</h4>
-                          <div className="flex items-center space-x-4 text-sm text-gray-600">
-                            <span className={`flex items-center space-x-1 ${progress.video_completed ? 'text-green-600' : 'text-gray-400'}`}>
-                              <CheckCircle className="h-4 w-4" />
-                              <span>Video</span>
-                            </span>
-                            <span className={`flex items-center space-x-1 ${progress.quiz_completed ? 'text-blue-600' : 'text-gray-400'}`}>
-                              <Award className="h-4 w-4" />
-                              <span>Quiz {progress.quiz_completed ? `(${progress.quiz_score}/${progress.quiz_total})` : ''}</span>
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex space-x-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              const module = modules.find(m => m.id === progress.module_id);
-                              if (module) handleStartModule(module);
-                            }}
-                          >
-                            View Module
-                          </Button>
-                        </div>
+            {user.role === 'student' && userStats && (
+              <>
+                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Total Points</CardTitle>
+                      <Trophy className="h-4 w-4 text-yellow-600" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{userStats?.total_points || 0}</div>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Modules Completed</CardTitle>
+                      <BookOpen className="h-4 w-4 text-blue-600" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">
+                        {userStats?.completed_modules || 0}/{userStats?.total_modules || 0}
                       </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Quizzes Completed</CardTitle>
+                      <GraduationCap className="h-4 w-4 text-emerald-600" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{userStats?.total_quizzes_completed || 0}</div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Active Alerts</CardTitle>
+                      <AlertTriangle className="h-4 w-4 text-red-600" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{alerts.length}</div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Module Progress Overview */}
+                {userStats?.module_progress && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Learning Progress</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        {userStats.module_progress.map((progress) => (
+                          <div key={progress.module_id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div>
+                              <h4 className="font-medium">{progress.module_title}</h4>
+                              <div className="flex items-center space-x-4 text-sm text-gray-600">
+                                <span className={`flex items-center space-x-1 ${progress.video_completed ? 'text-green-600' : 'text-gray-400'}`}>
+                                  <CheckCircle className="h-4 w-4" />
+                                  <span>Video</span>
+                                </span>
+                                <span className={`flex items-center space-x-1 ${progress.quiz_completed ? 'text-blue-600' : 'text-gray-400'}`}>
+                                  <Award className="h-4 w-4" />
+                                  <span>Quiz {progress.quiz_completed ? `(${progress.quiz_score}/${progress.quiz_total})` : ''}</span>
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex space-x-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  const module = modules.find(m => m.id === progress.module_id);
+                                  if (module) handleStartModule(module);
+                                }}
+                              >
+                                View Module
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </>
+            )}
+
+            {user.role === 'teacher' && (
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Students</CardTitle>
+                    <Users className="h-4 w-4 text-blue-600" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{classStats?.total_students || 0}</div>
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Avg Student Score</CardTitle>
+                    <Trophy className="h-4 w-4 text-yellow-600" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{classStats?.average_overall_score || 0}</div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Avg Modules Completed</CardTitle>
+                    <BookOpen className="h-4 w-4 text-green-600" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{classStats?.average_modules_completed || 0}</div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Active Alerts</CardTitle>
+                    <AlertTriangle className="h-4 w-4 text-red-600" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{alerts.length}</div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {user.role === 'admin' && (
+              <>
+                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Total Users</CardTitle>
+                      <Users className="h-4 w-4 text-blue-600" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{users.length}</div>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Total Students</CardTitle>
+                      <GraduationCap className="h-4 w-4 text-green-600" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{classStats?.total_students || 0}</div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Active Teachers</CardTitle>
+                      <Settings className="h-4 w-4 text-purple-600" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{teachersProgress?.length || 0}</div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Active Alerts</CardTitle>
+                      <AlertTriangle className="h-4 w-4 text-red-600" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{alerts.length}</div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* System Users */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>System Users</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {users.map((u) => (
+                        <div key={u.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                          <div>
+                            <p className="font-medium">{u.full_name}</p>
+                            <p className="text-sm text-gray-600">{u.email} • {u.username}</p>
+                          </div>
+                          <Badge variant={u.role === 'admin' ? 'destructive' : u.role === 'teacher' ? 'default' : 'secondary'}>
+                            {u.role}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
             )}
 
             {/* Active Alerts */}
@@ -854,180 +1411,140 @@ const Dashboard = ({ user, onLogout }) => {
                 </CardContent>
               </Card>
             )}
-
-            {/* Admin Panel */}
-            {user.role === 'admin' && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>System Users</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    {users.map((u) => (
-                      <div key={u.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                        <div>
-                          <p className="font-medium">{u.full_name}</p>
-                          <p className="text-sm text-gray-600">{u.email} • {u.username}</p>
-                        </div>
-                        <Badge variant={u.role === 'admin' ? 'destructive' : u.role === 'teacher' ? 'default' : 'secondary'}>
-                          {u.role}
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
           </TabsContent>
 
-          {/* Modules Tab */}
-          <TabsContent value="modules" className="space-y-6">
-            {currentModule && !currentQuiz ? (
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="text-2xl">{currentModule.title}</CardTitle>
-                      <CardDescription>{currentModule.description}</CardDescription>
+          {/* Student Learning Modules Tab (Student Only) */}
+          {user.role === 'student' && (
+            <TabsContent value="modules" className="space-y-6">
+              {currentModule && !currentQuiz ? (
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="text-2xl">{currentModule.title}</CardTitle>
+                        <CardDescription>{currentModule.description}</CardDescription>
+                      </div>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setCurrentModule(null)}
+                      >
+                        Back to Modules
+                      </Button>
                     </div>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <YouTubePlayer
+                      videoUrl={currentModule.video_url}
+                      onVideoEnd={() => handleVideoComplete(currentModule.id)}
+                      className="w-full"
+                    />
+                    
+                    <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        <Clock className="h-5 w-5 text-blue-600" />
+                        <span className="text-blue-800">
+                          Duration: {currentModule.video_duration} minutes
+                        </span>
+                      </div>
+                      
+                      {getModuleProgress(currentModule.id).videoCompleted && (
+                        <Button 
+                          onClick={() => handleTakeQuiz(currentModule)}
+                          className="bg-blue-600 hover:bg-blue-700"
+                        >
+                          <GraduationCap className="h-4 w-4 mr-2" />
+                          Take Quiz
+                        </Button>
+                      )}
+                    </div>
+                    
+                    {!getModuleProgress(currentModule.id).videoCompleted && (
+                      <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                        <p className="text-yellow-800 text-sm">
+                          📺 Watch the complete video to unlock the quiz for this module.
+                        </p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ) : currentQuiz ? (
+                <Card className="p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <h4 className="text-xl font-semibold">{currentQuiz.title}</h4>
                     <Button 
                       variant="outline" 
-                      onClick={() => setCurrentModule(null)}
+                      onClick={() => {setCurrentQuiz(null); setQuizAnswers({})}}
                     >
-                      Back to Modules
+                      Cancel Quiz
                     </Button>
                   </div>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <YouTubePlayer
-                    videoUrl={currentModule.video_url}
-                    onVideoEnd={() => handleVideoComplete(currentModule.id)}
-                    className="w-full"
-                  />
                   
-                  <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <Clock className="h-5 w-5 text-blue-600" />
-                      <span className="text-blue-800">
-                        Duration: {currentModule.video_duration} minutes
-                      </span>
-                    </div>
+                  <div className="space-y-6">
+                    {currentQuiz.questions.map((question, index) => (
+                      <div key={index} className="space-y-3 p-4 bg-gray-50 rounded-lg">
+                        <p className="font-medium text-lg">{index + 1}. {question.question}</p>
+                        <div className="space-y-2">
+                          {question.options.map((option, optionIndex) => (
+                            <label key={optionIndex} className="flex items-center space-x-3 cursor-pointer p-2 hover:bg-white rounded transition-colors">
+                              <input
+                                type="radio"
+                                name={`question-${index}`}
+                                value={optionIndex}
+                                onChange={(e) => setQuizAnswers({...quizAnswers, [index]: parseInt(e.target.value)})}
+                                className="form-radio text-blue-600"
+                              />
+                              <span className="text-gray-700">{option}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
                     
-                    {getModuleProgress(currentModule.id).videoCompleted && user.role === 'student' && (
+                    <div className="flex justify-center pt-4">
                       <Button 
-                        onClick={() => handleTakeQuiz(currentModule)}
-                        className="bg-blue-600 hover:bg-blue-700"
+                        onClick={handleQuizSubmit} 
+                        disabled={Object.keys(quizAnswers).length !== currentQuiz.questions.length}
+                        className="bg-green-600 hover:bg-green-700 px-8 py-2"
                       >
-                        <GraduationCap className="h-4 w-4 mr-2" />
-                        Take Quiz
+                        Submit Quiz
                       </Button>
-                    )}
-                    
-                    {getModuleProgress(currentModule.id).videoCompleted && user.role === 'teacher' && (
-                      <div className="text-center">
-                        <p className="text-blue-800 text-sm font-medium">📊 Module Complete</p>
-                        <p className="text-blue-600 text-xs">View student quiz progress in Class Progress tab</p>
-                      </div>
-                    )}
+                    </div>
+                  </div>
+                </Card>
+              ) : (
+                <div>
+                  <div className="mb-6">
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Learning Modules</h2>
+                    <p className="text-gray-600">
+                      Complete each module by watching the video and taking the quiz to earn points.
+                    </p>
                   </div>
                   
-                  {!getModuleProgress(currentModule.id).videoCompleted && user.role === 'student' && (
-                    <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-                      <p className="text-yellow-800 text-sm">
-                        📺 Watch the complete video to unlock the quiz for this module.
-                      </p>
-                    </div>
-                  )}
-                  
-                  {!getModuleProgress(currentModule.id).videoCompleted && user.role === 'teacher' && (
-                    <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                      <p className="text-blue-800 text-sm">
-                        📚 Educational content for disaster preparedness training.
-                      </p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ) : currentQuiz ? (
-              <Card className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h4 className="text-xl font-semibold">{currentQuiz.title}</h4>
-                  <Button 
-                    variant="outline" 
-                    onClick={() => {setCurrentQuiz(null); setQuizAnswers({})}}
-                  >
-                    Cancel Quiz
-                  </Button>
-                </div>
-                
-                <div className="space-y-6">
-                  {currentQuiz.questions.map((question, index) => (
-                    <div key={index} className="space-y-3 p-4 bg-gray-50 rounded-lg">
-                      <p className="font-medium text-lg">{index + 1}. {question.question}</p>
-                      <div className="space-y-2">
-                        {question.options.map((option, optionIndex) => (
-                          <label key={optionIndex} className="flex items-center space-x-3 cursor-pointer p-2 hover:bg-white rounded transition-colors">
-                            <input
-                              type="radio"
-                              name={`question-${index}`}
-                              value={optionIndex}
-                              onChange={(e) => setQuizAnswers({...quizAnswers, [index]: parseInt(e.target.value)})}
-                              className="form-radio text-blue-600"
-                            />
-                            <span className="text-gray-700">{option}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                  
-                  <div className="flex justify-center pt-4">
-                    <Button 
-                      onClick={handleQuizSubmit} 
-                      disabled={Object.keys(quizAnswers).length !== currentQuiz.questions.length}
-                      className="bg-green-600 hover:bg-green-700 px-8 py-2"
-                    >
-                      Submit Quiz
-                    </Button>
+                  <div className="grid gap-6 md:grid-cols-2">
+                    {modules.map((module) => {
+                      const progress = getModuleProgress(module.id);
+                      return (
+                        <ModuleCard
+                          key={module.id}
+                          module={module}
+                          videoCompleted={progress.videoCompleted}
+                          quizCompleted={progress.quizCompleted}
+                          quizScore={progress.quizScore}
+                          onStartModule={handleStartModule}
+                          onTakeQuiz={handleTakeQuiz}
+                          userRole={user.role}
+                        />
+                      );
+                    })}
                   </div>
                 </div>
-              </Card>
-            ) : (
-              <div>
-                <div className="mb-6">
-                  <h2 className="text-2xl font-bold text-gray-900 mb-2">Learning Modules</h2>
-                  <p className="text-gray-600">
-                    {user.role === 'student' 
-                      ? "Complete each module by watching the video and taking the quiz to earn points."
-                      : "Educational modules for disaster preparedness training. View student quiz progress in the Class Progress tab."
-                    }
-                  </p>
-                </div>
-                
-                <div className="grid gap-6 md:grid-cols-2">
-                  {modules.map((module) => {
-                    const progress = getModuleProgress(module.id);
-                    return (
-                      <ModuleCard
-                        key={module.id}
-                        module={module}
-                        videoCompleted={progress.videoCompleted}
-                        quizCompleted={progress.quizCompleted}
-                        quizScore={progress.quizScore}
-                        onStartModule={handleStartModule}
-                        onTakeQuiz={handleTakeQuiz}
-                        userRole={user.role}
-                      />
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </TabsContent>
+              )}
+            </TabsContent>
+          )}
 
-          {/* Teacher Dashboard Tab */}
+          {/* Student Progress Tab (Teacher & Admin) */}
           {(user.role === 'teacher' || user.role === 'admin') && (
-            <TabsContent value="teacher" className="space-y-6">
+            <TabsContent value="student-progress" className="space-y-6">
               <Card>
                 <CardHeader>
                   <CardTitle>Class Statistics</CardTitle>
@@ -1047,8 +1564,8 @@ const Dashboard = ({ user, onLogout }) => {
                       <p className="text-sm text-gray-600">Avg Modules</p>
                     </div>
                     <div className="text-center">
-                      <div className="text-2xl font-bold text-orange-600">{classStats?.average_quizzes_completed || 0}</div>
-                      <p className="text-sm text-gray-600">Avg Quizzes</p>
+                      <div className="text-2xl font-bold text-orange-600">{classStats?.average_overall_score || 0}</div>
+                      <p className="text-sm text-gray-600">Avg Overall Score</p>
                     </div>
                   </div>
                 </CardContent>
@@ -1056,16 +1573,23 @@ const Dashboard = ({ user, onLogout }) => {
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Student Progress</CardTitle>
+                  <CardTitle>Student Performance & Rankings</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
                     {studentsProgress.map((student) => (
                       <div key={student.student_id} className="border rounded-lg p-4">
                         <div className="flex items-center justify-between mb-3">
-                          <div>
-                            <h4 className="font-semibold">{student.student_name}</h4>
-                            <p className="text-sm text-gray-600">@{student.student_username}</p>
+                          <div className="flex items-center space-x-3">
+                            <div className="flex items-center space-x-2">
+                              <Badge variant="outline" className="px-2 py-1">
+                                Rank #{student.rank}
+                              </Badge>
+                              <div>
+                                <h4 className="font-semibold">{student.student_name}</h4>
+                                <p className="text-sm text-gray-600">@{student.student_username}</p>
+                              </div>
+                            </div>
                           </div>
                           <div className="flex items-center space-x-4 text-sm">
                             <div className="text-center">
@@ -1079,6 +1603,10 @@ const Dashboard = ({ user, onLogout }) => {
                             <div className="text-center">
                               <div className="font-bold text-purple-600">{student.total_quizzes}</div>
                               <div className="text-gray-500">Quizzes</div>
+                            </div>
+                            <div className="text-center">
+                              <div className="font-bold text-orange-600">{student.overall_score}</div>
+                              <div className="text-gray-500">Overall Score</div>
                             </div>
                           </div>
                         </div>
@@ -1108,86 +1636,104 @@ const Dashboard = ({ user, onLogout }) => {
             </TabsContent>
           )}
 
-          {/* Drills Tab */}
-          <TabsContent value="drills" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Emergency Drills</CardTitle>
-                <CardDescription>Participate in emergency drills to practice your response skills</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <Card className="p-4 bg-gradient-to-br from-red-50 to-red-100 border-red-200">
-                    <h3 className="font-semibold text-red-900 mb-2 flex items-center">
-                      <Flame className="h-4 w-4 mr-2" />
-                      Fire Drill
-                    </h3>
-                    <p className="text-sm text-red-800 mb-3">
-                      Practice evacuation procedures for fire emergencies
-                    </p>
-                    <Button 
-                      onClick={() => handleDrillParticipation('Fire Drill')}
-                      className="w-full bg-red-600 hover:bg-red-700"
-                    >
-                      Mark Participation
-                    </Button>
-                  </Card>
+          {/* Teacher Progress Tab (Admin Only) */}
+          {user.role === 'admin' && (
+            <TabsContent value="teacher-progress" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Teacher Activity Overview</CardTitle>
+                  <CardDescription>Monitor teacher engagement and content creation</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {teachersProgress?.length === 0 ? (
+                      <p className="text-center text-gray-500 py-8">No teacher activity data available</p>
+                    ) : (
+                      teachersProgress.map((teacher) => (
+                        <div key={teacher.teacher_id} className="border rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <div>
+                              <h4 className="font-semibold">{teacher.teacher_name}</h4>
+                              <p className="text-sm text-gray-600">@{teacher.teacher_username}</p>
+                            </div>
+                            <div className="flex items-center space-x-4 text-sm">
+                              <div className="text-center">
+                                <div className="font-bold text-blue-600">{teacher.created_quizzes}</div>
+                                <div className="text-gray-500">Quizzes Created</div>
+                              </div>
+                              <div className="text-center">
+                                <div className="font-bold text-orange-600">{teacher.created_alerts}</div>
+                                <div className="text-gray-500">Alerts Created</div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-xs text-gray-500">
+                                  Joined: {new Date(teacher.account_created).toLocaleDateString()}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="grid gap-4 md:grid-cols-2">
+                            <div>
+                              <h5 className="text-sm font-medium text-gray-700 mb-2">Recent Quizzes</h5>
+                              <div className="space-y-1">
+                                {teacher.recent_activity.recent_quizzes.length === 0 ? (
+                                  <p className="text-xs text-gray-500">No quizzes created yet</p>
+                                ) : (
+                                  teacher.recent_activity.recent_quizzes.map((quiz, index) => (
+                                    <div key={index} className="text-xs bg-blue-50 p-2 rounded">
+                                      <span className="font-medium">{quiz.title}</span>
+                                      <span className="text-gray-500 ml-2">
+                                        {new Date(quiz.created_at).toLocaleDateString()}
+                                      </span>
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+                            </div>
+                            
+                            <div>
+                              <h5 className="text-sm font-medium text-gray-700 mb-2">Recent Alerts</h5>
+                              <div className="space-y-1">
+                                {teacher.recent_activity.recent_alerts.length === 0 ? (
+                                  <p className="text-xs text-gray-500">No alerts created yet</p>
+                                ) : (
+                                  teacher.recent_activity.recent_alerts.map((alert, index) => (
+                                    <div key={index} className="text-xs bg-orange-50 p-2 rounded">
+                                      <span className="font-medium">{alert.title}</span>
+                                      <span className="text-gray-500 ml-2">
+                                        {new Date(alert.created_at).toLocaleDateString()}
+                                      </span>
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
 
-                  <Card className="p-4 bg-gradient-to-br from-yellow-50 to-yellow-100 border-yellow-200">
-                    <h3 className="font-semibold text-yellow-900 mb-2 flex items-center">
-                      <Zap className="h-4 w-4 mr-2" />
-                      Earthquake Drill
-                    </h3>
-                    <p className="text-sm text-yellow-800 mb-3">
-                      Practice Drop, Cover, and Hold On procedures
-                    </p>
-                    <Button 
-                      onClick={() => handleDrillParticipation('Earthquake Drill')}
-                      className="w-full bg-yellow-600 hover:bg-yellow-700"
-                    >
-                      Mark Participation
-                    </Button>
-                  </Card>
+          {/* Quiz Management Tab (Teacher Only) */}
+          {user.role === 'teacher' && (
+            <TabsContent value="quiz-management" className="space-y-6">
+              <QuizManager user={user} onRefresh={loadDashboardData} />
+            </TabsContent>
+          )}
 
-                  <Card className="p-4 bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
-                    <h3 className="font-semibold text-blue-900 mb-2 flex items-center">
-                      <CloudRain className="h-4 w-4 mr-2" />
-                      Flood Evacuation Drill
-                    </h3>
-                    <p className="text-sm text-blue-800 mb-3">
-                      Practice evacuation to higher ground procedures
-                    </p>
-                    <Button 
-                      onClick={() => handleDrillParticipation('Flood Evacuation Drill')}
-                      className="w-full bg-blue-600 hover:bg-blue-700"
-                    >
-                      Mark Participation
-                    </Button>
-                  </Card>
-
-                  <Card className="p-4 bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
-                    <h3 className="font-semibold text-purple-900 mb-2 flex items-center">
-                      <Shield className="h-4 w-4 mr-2" />
-                      Lockdown Drill
-                    </h3>
-                    <p className="text-sm text-purple-800 mb-3">
-                      Practice security lockdown procedures
-                    </p>
-                    <Button 
-                      onClick={() => handleDrillParticipation('Lockdown Drill')}
-                      className="w-full bg-purple-600 hover:bg-purple-700"
-                    >
-                      Mark Participation
-                    </Button>
-                  </Card>
-                </div>
-              </CardContent>
-            </Card>
+          {/* Leaderboard Tab */}
+          <TabsContent value="leaderboard" className="space-y-6">
+            <Leaderboard user={user} />
           </TabsContent>
 
           {/* Alerts Tab */}
           <TabsContent value="alerts" className="space-y-6">
-            {user.role === 'admin' && (
+            {(user.role === 'admin' || user.role === 'teacher') && (
               <Card>
                 <CardHeader>
                   <CardTitle>Create New Alert</CardTitle>
@@ -1206,12 +1752,13 @@ const Dashboard = ({ user, onLogout }) => {
                     </div>
                     <div>
                       <Label htmlFor="message">Alert Message</Label>
-                      <Input
+                      <Textarea
                         id="message"
                         value={newAlert.message}
                         onChange={(e) => setNewAlert({...newAlert, message: e.target.value})}
                         placeholder="Enter alert message"
                         required
+                        rows={3}
                       />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
@@ -1284,7 +1831,7 @@ const Dashboard = ({ user, onLogout }) => {
             </Card>
           </TabsContent>
 
-          {/* Contacts Tab */}
+          {/* Emergency Contacts Tab */}
           <TabsContent value="contacts" className="space-y-6">
             <Card>
               <CardHeader>
