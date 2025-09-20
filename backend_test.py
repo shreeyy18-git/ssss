@@ -463,6 +463,166 @@ class DisasterPreparednessAPITester:
                     else:
                         print(f"    ❌ Quiz has {len(quiz['questions'])} questions, expected 5")
 
+    def test_quiz_management_teachers(self):
+        """Test teacher quiz management endpoints"""
+        print("\n" + "="*50)
+        print("TESTING TEACHER QUIZ MANAGEMENT")
+        print("="*50)
+        
+        if not self.teacher_token:
+            print("❌ Skipping teacher quiz management tests - no teacher token")
+            return
+        
+        # Test creating a quiz
+        quiz_data = {
+            "title": "Test Teacher Quiz",
+            "module_id": None,  # Standalone quiz
+            "questions": [
+                {
+                    "question": "What is the first step in fire safety?",
+                    "options": ["Run", "Alert others", "Hide", "Take photos"],
+                    "correct": 1
+                },
+                {
+                    "question": "How often should smoke detectors be checked?",
+                    "options": ["Once a year", "Every 6 months", "Monthly", "Never"],
+                    "correct": 2
+                }
+            ]
+        }
+        
+        success, created_quiz = self.run_test(
+            "Create Quiz (Teacher)",
+            "POST",
+            "/teacher/quizzes",
+            200,
+            data=quiz_data,
+            token=self.teacher_token
+        )
+        
+        quiz_id = None
+        if success and created_quiz:
+            quiz_id = created_quiz.get('id')
+            print(f"Created quiz with ID: {quiz_id}")
+        
+        # Test getting teacher's quizzes
+        success, teacher_quizzes = self.run_test(
+            "Get Teacher Quizzes",
+            "GET",
+            "/teacher/quizzes",
+            200,
+            token=self.teacher_token
+        )
+        
+        if success and teacher_quizzes:
+            print(f"Teacher has {len(teacher_quizzes)} quizzes")
+        
+        # Test updating a quiz
+        if quiz_id:
+            updated_quiz_data = {
+                "title": "Updated Test Teacher Quiz",
+                "module_id": None,
+                "questions": [
+                    {
+                        "question": "Updated question: What is fire safety?",
+                        "options": ["Option A", "Option B", "Option C", "Option D"],
+                        "correct": 0
+                    }
+                ]
+            }
+            
+            self.run_test(
+                "Update Quiz (Teacher)",
+                "PUT",
+                f"/teacher/quizzes/{quiz_id}",
+                200,
+                data=updated_quiz_data,
+                token=self.teacher_token
+            )
+        
+        # Test admin can access teacher quiz management
+        if self.admin_token:
+            self.run_test(
+                "Get Teacher Quizzes (Admin)",
+                "GET",
+                "/teacher/quizzes",
+                200,
+                token=self.admin_token
+            )
+        
+        # Test student cannot access teacher quiz management
+        if self.student_token:
+            self.run_test(
+                "Get Teacher Quizzes (Student - Should Fail)",
+                "GET",
+                "/teacher/quizzes",
+                403,
+                token=self.student_token
+            )
+        
+        # Test deleting a quiz
+        if quiz_id:
+            self.run_test(
+                "Delete Quiz (Teacher)",
+                "DELETE",
+                f"/teacher/quizzes/{quiz_id}",
+                200,
+                token=self.teacher_token
+            )
+
+    def test_leaderboard_system(self):
+        """Test student leaderboard and ranking system"""
+        print("\n" + "="*50)
+        print("TESTING LEADERBOARD SYSTEM")
+        print("="*50)
+        
+        if not self.student_token:
+            print("❌ Skipping leaderboard tests - no student token")
+            return
+        
+        # Test leaderboard endpoint
+        success, leaderboard_data = self.run_test(
+            "Get Student Leaderboard",
+            "GET",
+            "/leaderboard",
+            200,
+            token=self.student_token
+        )
+        
+        if success and leaderboard_data:
+            leaderboard = leaderboard_data.get('leaderboard', [])
+            total_students = leaderboard_data.get('total_students', 0)
+            current_user_rank = leaderboard_data.get('current_user_rank')
+            
+            print(f"Leaderboard shows top {len(leaderboard)} students out of {total_students}")
+            if current_user_rank:
+                print(f"Current user rank: #{current_user_rank}")
+            
+            for i, student in enumerate(leaderboard[:5]):  # Show top 5
+                print(f"  #{student['rank']}: {student['student_name']} - {student['overall_score']} pts")
+                print(f"    Modules: {student['completed_modules']}/{student['total_modules']}, Quizzes: {student['total_quizzes']}")
+                print(f"    Completion Speed: {student['completion_speed']} modules/day")
+        
+        # Test teacher can access leaderboard
+        if self.teacher_token:
+            self.run_test(
+                "Get Student Leaderboard (Teacher)",
+                "GET",
+                "/leaderboard",
+                200,
+                token=self.teacher_token
+            )
+        
+        # Test admin can access leaderboard
+        if self.admin_token:
+            self.run_test(
+                "Get Student Leaderboard (Admin)",
+                "GET",
+                "/leaderboard",
+                200,
+                token=self.admin_token
+            )
+
     def test_teacher_dashboard(self):
         """Test teacher dashboard functionality"""
         print("\n" + "="*50)
@@ -473,9 +633,9 @@ class DisasterPreparednessAPITester:
             print("❌ Skipping teacher dashboard tests - no teacher token")
             return
         
-        # Test teacher students progress endpoint
+        # Test teacher students progress endpoint with ranking
         success, progress_data = self.run_test(
-            "Get Students Progress (Teacher)",
+            "Get Students Progress with Rankings (Teacher)",
             "GET",
             "/teacher/students-progress",
             200,
@@ -492,9 +652,63 @@ class DisasterPreparednessAPITester:
             print(f"  Average Points: {class_stats.get('average_points', 0)}")
             print(f"  Average Modules: {class_stats.get('average_modules_completed', 0)}")
             print(f"  Average Quizzes: {class_stats.get('average_quizzes_completed', 0)}")
+            print(f"  Average Overall Score: {class_stats.get('average_overall_score', 0)}")
             
             for student in students:
-                print(f"  Student: {student['student_name']} - Points: {student['total_points']}, Modules: {student['completed_modules']}/{student['total_modules']}")
+                print(f"  Rank #{student.get('rank', 'N/A')}: {student['student_name']} - Overall Score: {student.get('overall_score', 0)}")
+                print(f"    Points: {student['total_points']}, Modules: {student['completed_modules']}/{student['total_modules']}")
+                print(f"    Completion Speed: {student.get('completion_speed', 0)} modules/day")
+
+    def test_admin_teacher_progress(self):
+        """Test admin teacher progress tracking"""
+        print("\n" + "="*50)
+        print("TESTING ADMIN TEACHER PROGRESS")
+        print("="*50)
+        
+        if not self.admin_token:
+            print("❌ Skipping admin teacher progress tests - no admin token")
+            return
+        
+        # Test admin teachers progress endpoint
+        success, teachers_data = self.run_test(
+            "Get Teachers Progress (Admin)",
+            "GET",
+            "/admin/teachers-progress",
+            200,
+            token=self.admin_token
+        )
+        
+        if success and teachers_data:
+            teachers = teachers_data.get('teachers_progress', [])
+            total_teachers = teachers_data.get('total_teachers', 0)
+            
+            print(f"Found {len(teachers)} teachers, total: {total_teachers}")
+            
+            for teacher in teachers:
+                print(f"  Teacher: {teacher['teacher_name']} (@{teacher['teacher_username']})")
+                print(f"    Created Quizzes: {teacher['created_quizzes']}")
+                print(f"    Created Alerts: {teacher['created_alerts']}")
+                print(f"    Account Created: {teacher['account_created']}")
+        
+        # Test teacher cannot access this endpoint
+        if self.teacher_token:
+            self.run_test(
+                "Get Teachers Progress (Teacher - Should Fail)",
+                "GET",
+                "/admin/teachers-progress",
+                403,
+                token=self.teacher_token
+            )
+        
+        # Test student cannot access this endpoint
+        if self.student_token:
+            self.run_test(
+                "Get Teachers Progress (Student - Should Fail)",
+                "GET",
+                "/admin/teachers-progress",
+                403,
+                token=self.student_token
+            )
 
     def test_user_stats(self):
         """Test user statistics endpoint"""
