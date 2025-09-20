@@ -286,6 +286,24 @@ class DisasterPreparednessAPITester:
                     token=self.admin_token
                 )
         
+        # NEW: Test teacher can create alerts
+        if self.teacher_token:
+            teacher_alert_data = {
+                "title": "Teacher Emergency Alert",
+                "message": "This is a test alert created by teacher",
+                "alert_type": "earthquake",
+                "severity": "medium"
+            }
+            
+            self.run_test(
+                "Create Alert (Teacher)",
+                "POST",
+                "/alerts",
+                200,
+                data=teacher_alert_data,
+                token=self.teacher_token
+            )
+        
         # Try to create alert as student (should fail)
         if self.student_token:
             alert_data = {
