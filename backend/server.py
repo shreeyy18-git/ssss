@@ -805,7 +805,11 @@ async def get_all_students_progress(current_user: User = Depends(get_current_use
         stats = await get_user_stats(student["id"], current_user)
         
         # Calculate completion speed score (modules completed / days since account creation)
-        days_since_creation = max(1, (datetime.now(timezone.utc) - student["created_at"]).days)
+        # Handle timezone-aware vs timezone-naive datetime comparison
+        student_created_at = student["created_at"]
+        if student_created_at.tzinfo is None:
+            student_created_at = student_created_at.replace(tzinfo=timezone.utc)
+        days_since_creation = max(1, (datetime.now(timezone.utc) - student_created_at).days)
         completion_speed = stats["completed_modules"] / days_since_creation
         
         # Calculate overall score (points + completion speed bonus)
