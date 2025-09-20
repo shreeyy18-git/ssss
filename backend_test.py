@@ -753,13 +753,16 @@ def main():
     # Run all tests
     tester.test_authentication()
     tester.test_user_management()
-    tester.test_modules_and_videos()  # New test for modules and videos
+    tester.test_modules_and_videos()
     tester.test_quiz_system()
+    tester.test_quiz_management_teachers()  # NEW: Teacher quiz management
     tester.test_drill_system()
-    tester.test_alert_system()
+    tester.test_alert_system()  # Updated with teacher alert creation
     tester.test_emergency_contacts()
     tester.test_disaster_prediction()
-    tester.test_teacher_dashboard()  # New test for teacher dashboard
+    tester.test_leaderboard_system()  # NEW: Leaderboard and ranking
+    tester.test_teacher_dashboard()  # Updated with ranking
+    tester.test_admin_teacher_progress()  # NEW: Admin teacher progress
     tester.test_user_stats()
     
     # Print final results
