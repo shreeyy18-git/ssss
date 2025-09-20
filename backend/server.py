@@ -789,7 +789,7 @@ async def get_user_stats(user_id: str, current_user: User = Depends(get_current_
         "recent_drill_participations": recent_drill_participations
     }
 
-# Teacher Dashboard - All Students Progress
+# Teacher Dashboard - All Students Progress with Ranking
 @api_router.get("/teacher/students-progress")
 async def get_all_students_progress(current_user: User = Depends(get_current_user)):
     if current_user.role != "admin" and current_user.role != "teacher":
@@ -802,6 +802,14 @@ async def get_all_students_progress(current_user: User = Depends(get_current_use
     for student in students:
         # Get student stats
         stats = await get_user_stats(student["id"], current_user)
+        
+        # Calculate completion speed score (modules completed / days since account creation)
+        days_since_creation = max(1, (datetime.now(timezone.utc) - student["created_at"]).days)
+        completion_speed = stats["completed_modules"] / days_since_creation
+        
+        # Calculate overall score (points + completion speed bonus)
+        overall_score = stats["total_points"] + (completion_speed * 10)
+        
         students_progress.append({
             "student_id": student["id"],
             "student_name": student["full_name"],
@@ -810,8 +818,17 @@ async def get_all_students_progress(current_user: User = Depends(get_current_use
             "completed_modules": stats["completed_modules"],
             "total_modules": stats["total_modules"],
             "total_quizzes": stats["total_quizzes_completed"],
+            "completion_speed": round(completion_speed, 2),
+            "overall_score": round(overall_score, 1),
             "module_progress": stats["module_progress"]
         })
+    
+    # Sort by overall score for ranking
+    students_progress.sort(key=lambda x: x["overall_score"], reverse=True)
+    
+    # Add rank to each student
+    for i, student in enumerate(students_progress):
+        student["rank"] = i + 1
     
     # Calculate class statistics
     total_students = len(students_progress)
@@ -819,8 +836,9 @@ async def get_all_students_progress(current_user: User = Depends(get_current_use
         avg_points = sum(s["total_points"] for s in students_progress) / total_students
         avg_modules = sum(s["completed_modules"] for s in students_progress) / total_students
         avg_quizzes = sum(s["total_quizzes"] for s in students_progress) / total_students
+        avg_score = sum(s["overall_score"] for s in students_progress) / total_students
     else:
-        avg_points = avg_modules = avg_quizzes = 0
+        avg_points = avg_modules = avg_quizzes = avg_score = 0
     
     return {
         "students_progress": students_progress,
@@ -828,8 +846,91 @@ async def get_all_students_progress(current_user: User = Depends(get_current_use
             "total_students": total_students,
             "average_points": round(avg_points, 1),
             "average_modules_completed": round(avg_modules, 1),
-            "average_quizzes_completed": round(avg_quizzes, 1)
+            "average_quizzes_completed": round(avg_quizzes, 1),
+            "average_overall_score": round(avg_score, 1)
         }
+    }
+
+# Student Leaderboard Route
+@api_router.get("/leaderboard")
+async def get_student_leaderboard(current_user: User = Depends(get_current_user)):
+    if current_user.role not in ["admin", "teacher", "student"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Get all students
+    students = await db.users.find({"role": "student"}).to_list(length=None)
+    
+    leaderboard = []
+    for student in students:
+        # Get student stats
+        stats = await get_user_stats(student["id"], current_user)
+        
+        # Calculate completion speed score
+        days_since_creation = max(1, (datetime.now(timezone.utc) - student["created_at"]).days)
+        completion_speed = stats["completed_modules"] / days_since_creation
+        
+        # Calculate overall score
+        overall_score = stats["total_points"] + (completion_speed * 10)
+        
+        leaderboard.append({
+            "student_id": student["id"],
+            "student_name": student["full_name"],
+            "student_username": student["username"],
+            "total_points": stats["total_points"],
+            "completed_modules": stats["completed_modules"],
+            "total_modules": stats["total_modules"],
+            "total_quizzes": stats["total_quizzes_completed"],
+            "overall_score": round(overall_score, 1),
+            "completion_speed": round(completion_speed, 2)
+        })
+    
+    # Sort by overall score
+    leaderboard.sort(key=lambda x: x["overall_score"], reverse=True)
+    
+    # Add rank
+    for i, student in enumerate(leaderboard):
+        student["rank"] = i + 1
+    
+    # Return top 10 for leaderboard display
+    return {
+        "leaderboard": leaderboard[:10],
+        "total_students": len(leaderboard),
+        "current_user_rank": next((s["rank"] for s in leaderboard if s["student_id"] == current_user.id), None) if current_user.role == "student" else None
+    }
+
+# Teacher Progress Tracking for Admin
+@api_router.get("/admin/teachers-progress")
+async def get_teachers_progress(current_user: User = Depends(get_current_user)):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Get all teachers
+    teachers = await db.users.find({"role": "teacher"}).to_list(length=None)
+    
+    teachers_progress = []
+    for teacher in teachers:
+        # Get quizzes created by teacher
+        created_quizzes = await db.quizzes.find({"created_by": teacher["id"]}).to_list(length=None)
+        
+        # Get alerts created by teacher
+        created_alerts = await db.alerts.find({"created_by": teacher["id"]}).to_list(length=None)
+        
+        teachers_progress.append({
+            "teacher_id": teacher["id"],
+            "teacher_name": teacher["full_name"],
+            "teacher_username": teacher["username"],
+            "created_quizzes": len(created_quizzes),
+            "created_alerts": len(created_alerts),
+            "account_created": teacher["created_at"],
+            "recent_activity": {
+                "recent_quizzes": [{"title": q["title"], "created_at": q["created_at"]} for q in created_quizzes[-3:]],
+                "recent_alerts": [{"title": a["title"], "created_at": a["created_at"]} for a in created_alerts[-3:]]
+            }
+        })
+    
+    return {
+        "teachers_progress": teachers_progress,
+        "total_teachers": len(teachers_progress)
     }
 
 # Include the router in the main app
