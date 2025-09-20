@@ -534,7 +534,8 @@ async def get_active_alerts(current_user: User = Depends(get_current_user)):
 
 @api_router.post("/alerts", response_model=Alert)
 async def create_alert(alert: Alert, current_user: User = Depends(get_current_user)):
-    if current_user.role != "admin":
+    # Allow both admins and teachers to create alerts
+    if current_user.role not in ["admin", "teacher"]:
         raise HTTPException(status_code=403, detail="Not authorized")
     
     alert.created_by = current_user.id
