@@ -497,6 +497,86 @@ async def get_module_quizzes(module_id: str, current_user: User = Depends(get_cu
     quizzes = await db.quizzes.find({"module_id": module_id}).to_list(length=None)
     return [Quiz(**quiz) for quiz in quizzes]
 
+# New Quiz Management Routes for Teachers
+class QuizCreate(BaseModel):
+    title: str
+    module_id: Optional[str] = None  # None for standalone quizzes
+    questions: List[dict]
+
+@api_router.post("/teacher/quizzes", response_model=Quiz)
+async def create_quiz(quiz_data: QuizCreate, current_user: User = Depends(get_current_user)):
+    if current_user.role not in ["admin", "teacher"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    quiz = Quiz(
+        title=quiz_data.title,
+        module_id=quiz_data.module_id or "",
+        questions=quiz_data.questions
+    )
+    # Add created_by field to track who created the quiz
+    quiz_dict = quiz.dict()
+    quiz_dict["created_by"] = current_user.id
+    
+    await db.quizzes.insert_one(quiz_dict)
+    return quiz
+
+@api_router.get("/teacher/quizzes", response_model=List[Quiz])
+async def get_teacher_quizzes(current_user: User = Depends(get_current_user)):
+    if current_user.role not in ["admin", "teacher"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Get quizzes created by current teacher or all if admin
+    if current_user.role == "admin":
+        quizzes = await db.quizzes.find().to_list(length=None)
+    else:
+        quizzes = await db.quizzes.find({"created_by": current_user.id}).to_list(length=None)
+    
+    return [Quiz(**quiz) for quiz in quizzes]
+
+@api_router.put("/teacher/quizzes/{quiz_id}", response_model=Quiz)
+async def update_quiz(quiz_id: str, quiz_data: QuizCreate, current_user: User = Depends(get_current_user)):
+    if current_user.role not in ["admin", "teacher"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Check if quiz exists and user has permission
+    existing_quiz = await db.quizzes.find_one({"id": quiz_id})
+    if not existing_quiz:
+        raise HTTPException(status_code=404, detail="Quiz not found")
+    
+    if current_user.role == "teacher" and existing_quiz.get("created_by") != current_user.id:
+        raise HTTPException(status_code=403, detail="Can only edit your own quizzes")
+    
+    # Update quiz
+    updated_quiz = Quiz(
+        id=quiz_id,
+        title=quiz_data.title,
+        module_id=quiz_data.module_id or "",
+        questions=quiz_data.questions
+    )
+    
+    quiz_dict = updated_quiz.dict()
+    quiz_dict["created_by"] = existing_quiz.get("created_by", current_user.id)
+    quiz_dict["updated_at"] = datetime.now(timezone.utc)
+    
+    await db.quizzes.update_one({"id": quiz_id}, {"$set": quiz_dict})
+    return updated_quiz
+
+@api_router.delete("/teacher/quizzes/{quiz_id}")
+async def delete_quiz(quiz_id: str, current_user: User = Depends(get_current_user)):
+    if current_user.role not in ["admin", "teacher"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Check if quiz exists and user has permission
+    existing_quiz = await db.quizzes.find_one({"id": quiz_id})
+    if not existing_quiz:
+        raise HTTPException(status_code=404, detail="Quiz not found")
+    
+    if current_user.role == "teacher" and existing_quiz.get("created_by") != current_user.id:
+        raise HTTPException(status_code=403, detail="Can only delete your own quizzes")
+    
+    await db.quizzes.delete_one({"id": quiz_id})
+    return {"message": "Quiz deleted successfully"}
+
 @api_router.post("/quiz-attempts", response_model=QuizAttempt)
 async def submit_quiz(attempt: QuizAttempt, current_user: User = Depends(get_current_user)):
     attempt.user_id = current_user.id
