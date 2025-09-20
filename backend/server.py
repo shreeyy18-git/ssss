@@ -86,8 +86,9 @@ class VideoCompletion(BaseModel):
 class Quiz(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     title: str
-    module_id: str  # Associated module
+    module_id: str  # Associated module, empty string for standalone quizzes
     questions: List[dict]
+    created_by: Optional[str] = None  # ID of teacher/admin who created the quiz
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class QuizAttempt(BaseModel):
